@@ -9,6 +9,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>Reminders.Backend</AssemblyName>
     <RootNamespace>Reminders.Windows</RootNamespace>
+    <ApplicationIcon>../Reminders.Desktop/src-tauri/icons/icon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Reminders.Core/Reminders.Core.csproj" />

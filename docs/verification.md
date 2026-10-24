@@ -1,0 +1,67 @@
+# 验证与 Windows 实机清单
+
+## 自动验证
+
+核心和持久化自动化测试覆盖每日 04:00/05:00、每周四边界、每两天跨月闰年、未来起点、Berlin 夏令时、一次性截止与完成、日程版本、事件快照、排序归档及保存失败状态不变。
+
+文件测试使用隔离目录，覆盖中文内容、重启、原子替换、有效备份、明确恢复、损坏数据/缺失必需字段、未来版本保护和临时文件清理。JSONL 测试覆盖方法映射、事件/响应分离、格式错误、显隐模式、加载失败与明确恢复；真实进程检查覆盖 EOF 退出、目录别名独占锁和重启恢复。
+
+React 使用 Vitest/Testing Library 验证表单、保存失败、完成/撤销、历史保留、备份确认、后台错误禁写和演示标识。Rust 测试验证单行编码、错误解码、显隐请求乱序与失败恢复事务。生产资源不加载外部字体或脚本。
+
+构建命令：
+
+```sh
+dotnet test tests/Reminders.Tests -c Release
+dotnet test tests/Reminders.Windows.Tests/Protocol/Reminders.Protocol.Tests.csproj -c Release
+dotnet build Reminders.slnx -c Release
+dotnet publish src/Reminders.Windows -c Release -r win-x64 --self-contained true -o artifacts/backend
+cd src/Reminders.Desktop
+npm ci
+npm test
+npm run build
+```
+
+## Windows 验收
+
+**自动化不得在用户正在使用的共享桌面操作鼠标、键盘、焦点或全屏窗口。** 指定隔离数据目录只能隔离数据，不能隔离桌面输入；真实交互验收必须在 Windows Sandbox/虚拟机里进行。使用 `--data-dir` 指定隔离目录，不修改日常数据，验证后从托盘退出。
+
+日常 Windows UI 验证使用不显示窗口的 STA 程序：
+
+```powershell
+dotnet run --project tests/Reminders.Windows.Tests -c Release -- artifacts/offscreen
+```
+
+它直接创建未显示的 WPF Overlay 控件树，用内存存储验证待办投影、完成后隐藏、不同模式、溢出与意外关闭保护，并通过 RenderTargetBitmap 导出 PNG。它不调用 Show/Activate，不发送真实输入，不截取用户桌面，也不会启动应用托盘和 Overlay 控制器。离屏图只含测试数据。
+
+真实后台进程协议验证仍完全无界面：
+
+```powershell
+./scripts/verify-backend.ps1 -BackendPath "$pwd/src/Reminders.Windows/bin/Release/net10.0-windows/Reminders.Backend.dll"
+```
+
+该脚本强制所有子进程使用 `--headless`、重定向标准输入输出并禁用控制台窗口。它使用临时数据目录，不创建托盘、Overlay 或编辑器。
+
+React 已使用 headless Chromium 检查任务、一次性编辑、设置、历史及 720px 紧凑布局，浏览器控制台无错误、无横向溢出。浏览器演示不构成正式桌面 IPC 验收。
+
+- [ ] 新建、修改、启用/停用、排序、归档；输入错误时保留表单。
+- [ ] 快捷模板的重置规则正确；一次性任务的日期与具体时间可选。
+- [ ] 编辑器打开时可拖动、缩放 Overlay；重启保留几何信息。
+- [ ] 最小化和关闭编辑器均进入托盘；双击图标可恢复；退出菜单能结束全部窗口和进程。
+- [ ] 日常模式文字、空白与勾选框外的边缘能点击到底层其他进程，不只是本程序其他窗口。
+- [ ] 勾选框点击只完成任务，底层不收到同次点击，键盘焦点仍在底层程序。
+- [ ] 最后一项完成后，文字和勾选 HWND 都隐藏；编辑器撤销后恢复。
+- [ ] 新周期无需重启即恢复；独立 04:00 与 05:00 重置互不影响。
+- [ ] 逾期一次性任务仍可见；完成后跨日不重新出现。
+- [ ] 独占全屏游戏、无边框全屏、F11 浏览器、视频全屏进入/退出时隐藏/恢复。
+- [ ] 普通最大化、桌面、任务栏不误判；置顶关闭时按普通窗口层级显示。
+- [ ] 多屏全屏全局隐藏；负坐标、混合 DPI 和拔除副屏后位置仍可见。
+- [ ] 切换系统时区、休眠恢复后周期正确；不改动操作系统时间设置来测试普通功能。
+- [ ] 模拟写入失败时任务保持原状态，有可见错误；损坏主文件恢复前需要确认。
+
+## 本次结果
+
+2026-10-24：核心与持久化 43 项、JSONL 协议 17 项、React 26 项、Rust 协议/窗口协调 5 项测试通过。Windows 离屏 Overlay 验证 10 项、真实无界面后台进程检查 8 项通过。.NET Release 构建 0 警告、0 错误，Tauri Windows GNU Release 已成功编译；便携包包含所需的动态 WebView2 加载库与自包含后台。
+
+一致性回归包含：旧版本响应晚到、同版本响应晚于后台错误、初始化请求故障、迟到订阅、故障期间再次故障、主动重读恢复、未保存设置草稿，以及新建任务超时重试复用同一身份。
+
+早期曾在共享桌面执行真实鼠标验收，验证过跨进程文字穿透、勾选不传递到底层、不切换前台焦点、完成落盘、无边框全屏隐藏/恢复和末项完成后移除交互窗口。此方式干扰了用户，已删除相应脚本，并改用上面的无输入验证；后续不得重演。此结果不是最终版本所有窗口行为已通过实机验收的声明。上方清单仍用于隔离环境的完整验收。

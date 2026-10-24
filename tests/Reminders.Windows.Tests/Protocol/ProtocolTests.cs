@@ -105,6 +105,77 @@ public sealed class ProtocolTests
     }
 
     [Fact]
+    public void SnapshotReloadsExternallyRepairedPrimaryWithoutWritingOrRestoring()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "RemindersProtocolTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "state.json");
+            var jsonStore = new JsonStateStore(path);
+            jsonStore.Save(new());
+            jsonStore.Save(new() { Tasks = new[] { new TaskDefinition { Title = "外部修复的任务" } } });
+            var repairedBytes = File.ReadAllBytes(path);
+            var backupBytes = File.ReadAllBytes(path + ".bak");
+            File.WriteAllText(path, "损坏内容");
+            var tracked = new TrackingStore(jsonStore);
+            var restored = 0;
+            using var session = new BackendSession(tracked, () => { restored++; jsonStore.RestoreBackup(); }, () => jsonStore.HasBackup, clock, () => TimeZoneInfo.Utc);
+            using var protocol = new JsonLineProtocol(session, output);
+            var replaced = 0;
+            var changed = 0;
+            session.ServiceReplaced += (_, _) => replaced++;
+            session.Changed += (_, _) => changed++;
+            Assert.False(session.Snapshot().Ready);
+            Assert.True(session.Snapshot().CanRestoreBackup);
+            protocol.ProcessLine(Request(1, "snapshot", new { }));
+            Assert.False(Last.GetProperty("result").GetProperty("ready").GetBoolean());
+            Assert.Equal(0, replaced);
+
+            // 模拟用户用外部编辑器修复主文件，“重新读取”只尝试读取该文件。
+            File.WriteAllBytes(path, repairedBytes);
+            protocol.ProcessLine(Request(2, "snapshot", new { }));
+            Assert.True(Last.GetProperty("result").GetProperty("ready").GetBoolean());
+            Assert.Equal("外部修复的任务", Last.GetProperty("result").GetProperty("definitions")[0].GetProperty("title").GetString());
+            Assert.Null(session.Snapshot().Error);
+            Assert.Equal(1, replaced);
+            Assert.Equal(1, changed);
+            Assert.Contains("\"event\":\"changed\"", output.ToString());
+            Assert.Equal(3, tracked.LoadCalls);
+            protocol.ProcessLine(Request(3, "snapshot", new { }));
+            Assert.Equal(3, tracked.LoadCalls);
+            Assert.Equal(1, replaced);
+            Assert.Equal(1, changed);
+            Assert.Equal(0, restored);
+            Assert.Equal(0, tracked.SaveCalls);
+            Assert.Equal(repairedBytes, File.ReadAllBytes(path));
+            Assert.Equal(backupBytes, File.ReadAllBytes(path + ".bak"));
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
+    [Fact]
+    public void FutureSchemaSnapshotDoesNotRestoreOrOverwritePrimary()
+    {
+        store.Broken = true;
+        store.CanRestore = false;
+        var restored = 0;
+        using var session = new BackendSession(store, () => restored++, () => true, clock, () => TimeZoneInfo.Utc);
+        using var protocol = new JsonLineProtocol(session, output);
+        var replaced = 0;
+        session.ServiceReplaced += (_, _) => replaced++;
+        protocol.ProcessLine(Request(1, "snapshot", new { }));
+        protocol.ProcessLine(Request(2, "snapshot", new { }));
+        Assert.False(Last.GetProperty("result").GetProperty("ready").GetBoolean());
+        Assert.False(Last.GetProperty("result").GetProperty("canRestoreBackup").GetBoolean());
+        Assert.True(store.Broken);
+        Assert.Equal(0, restored);
+        Assert.Equal(0, replaced);
+        Assert.Equal(3, store.LoadCalls);
+        Assert.Equal(0, store.SaveCalls);
+    }
+
+    [Fact]
     public void FutureSchemaDisablesRecovery()
     {
         store.Broken = true; store.CanRestore = false;
@@ -115,6 +186,60 @@ public sealed class ProtocolTests
         protocol.ProcessLine("{\"id\":1,\"method\":\"restoreBackup\",\"payload\":{}}");
         Assert.True(Last.TryGetProperty("error", out _));
         Assert.True(store.Broken);
+    }
+
+    [Fact]
+    public void SequenceTracksStateAndMidnightWhileMatchingEventAndResponse()
+    {
+        using var session = Session();
+        using var protocol = new JsonLineProtocol(session, output);
+        Assert.Equal(0, session.Snapshot().Sequence);
+        var task = new TaskDefinition { Title = "五点重置", Schedule = new() { ResetTime = new(5, 0) } };
+        session.Service!.SaveTask(task);
+        Assert.Equal(1, session.Snapshot().Sequence);
+        protocol.ProcessLine(Request(1, "snapshot", new { }));
+        protocol.ProcessLine(Request(2, "snapshot", new { }));
+        Assert.Equal(1, Last.GetProperty("result").GetProperty("sequence").GetInt64());
+
+        output.GetStringBuilder().Clear();
+        protocol.ProcessLine(Request(3, "complete", new { id = task.Id }));
+        var lines = output.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(2, lines.Length);
+        using var changed = JsonDocument.Parse(lines[0]);
+        Assert.Equal("changed", changed.RootElement.GetProperty("event").GetString());
+        Assert.Equal(2, changed.RootElement.GetProperty("snapshot").GetProperty("sequence").GetInt64());
+        Assert.Equal(2, Last.GetProperty("result").GetProperty("sequence").GetInt64());
+        protocol.ProcessLine(Request(4, "undo", new { id = task.Id }));
+        Assert.Equal(3, Last.GetProperty("result").GetProperty("sequence").GetInt64());
+        session.Service.SaveTask(task with { Schedule = task.Schedule with { ResetTime = new(4, 0) } });
+        Assert.Equal(4, session.Snapshot().Sequence);
+
+        clock.Now = DateTimeOffset.Parse("2026-10-24T23:59:00Z");
+        session.RefreshTime();
+        Assert.Equal(4, session.Snapshot().Sequence);
+        var key = session.Snapshot().Tasks[0].Period!.Key;
+        clock.Now = clock.Now.AddMinutes(1);
+        session.RefreshTime();
+        Assert.Equal(key, session.Snapshot().Tasks[0].Period!.Key);
+        Assert.Equal(5, session.Snapshot().Sequence);
+        session.RefreshTime();
+        protocol.ProcessLine(Request(5, "snapshot", new { }));
+        Assert.Equal(5, Last.GetProperty("result").GetProperty("sequence").GetInt64());
+    }
+
+    [Fact]
+    public void DateProjectionUsesLocalMidnightRatherThanUtcMidnight()
+    {
+        clock.Now = DateTimeOffset.Parse("2026-10-24T15:59:00Z");
+        var zone = TimeZoneInfo.CreateCustomTimeZone("Test/Plus8", TimeSpan.FromHours(8), "Test +08", "Test +08");
+        using var session = new BackendSession(store, () => { }, () => false, clock, () => zone);
+        session.Service!.SaveTask(new() { Title = "本地日常", Schedule = new() { ResetTime = new(5, 0) } });
+        var sequence = session.Snapshot().Sequence;
+        var key = session.Snapshot().Tasks[0].Period!.Key;
+        clock.Now = clock.Now.AddMinutes(1);
+        session.RefreshTime();
+        Assert.Equal(key, session.Snapshot().Tasks[0].Period!.Key);
+        Assert.Equal(sequence + 1, session.Snapshot().Sequence);
     }
 
     [Fact]
@@ -174,13 +299,23 @@ public sealed class ProtocolTests
         public DateTimeOffset Now { get; set; } = DateTimeOffset.Parse("2026-10-24T12:00:00Z");
         public override DateTimeOffset GetUtcNow() => Now;
     }
+    private sealed class TrackingStore(IStateStore inner) : IStateStore
+    {
+        public int LoadCalls { get; private set; }
+        public int SaveCalls { get; private set; }
+        public AppState Load() { LoadCalls++; return inner.Load(); }
+        public void Save(AppState state) { SaveCalls++; inner.Save(state); }
+    }
+
     private sealed class MemoryStore : IStateStore
     {
         public AppState State { get; private set; } = new();
         public bool Broken { get; set; }
         public bool CanRestore { get; set; } = true;
         public bool Fail { get; set; }
-        public AppState Load() => Broken ? throw new StateLoadException("数据损坏", canRestoreBackup: CanRestore) : State;
-        public void Save(AppState state) { if (Fail) throw new IOException("模拟写入失败"); State = state; }
+        public int LoadCalls { get; private set; }
+        public int SaveCalls { get; private set; }
+        public AppState Load() { LoadCalls++; return Broken ? throw new StateLoadException("数据损坏", canRestoreBackup: CanRestore) : State; }
+        public void Save(AppState state) { SaveCalls++; if (Fail) throw new IOException("模拟写入失败"); State = state; }
     }
 }

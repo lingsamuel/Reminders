@@ -1,0 +1,55 @@
+name: Build Windows
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: src/Reminders.Desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test core and persistence
+        run: dotnet test tests/Reminders.Tests -c Release
+      - name: Test backend protocol
+        run: dotnet test tests/Reminders.Windows.Tests/Protocol/Reminders.Protocol.Tests.csproj -c Release
+      - name: Test React editor
+        working-directory: src/Reminders.Desktop
+        run: |
+          npm ci
+          npm test
+      - name: Build solution
+        run: dotnet build Reminders.slnx -c Release
+      - name: Verify WPF offscreen without desktop input
+        run: dotnet run --project tests/Reminders.Windows.Tests -c Release --no-build -- artifacts/offscreen
+      - name: Verify real backend stdio without desktop input
+        shell: pwsh
+        run: ./scripts/verify-backend.ps1 -BackendPath "$pwd/src/Reminders.Windows/bin/Release/net10.0-windows/Reminders.Backend.dll"
+      - name: Test Rust protocol and window coordination
+        working-directory: src/Reminders.Desktop/src-tauri
+        run: cargo test --locked
+      - name: Publish Windows x64
+        shell: pwsh
+        run: ./scripts/publish.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Reminders-win-x64
+          path: artifacts/Reminders-*-win-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Reminders-installer
+          path: src/Reminders.Desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offscreen-previews
+          path: artifacts/offscreen/*.png

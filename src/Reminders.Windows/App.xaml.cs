@@ -69,9 +69,11 @@ public partial class App : Application
         overlay = null;
         tray = null;
         // 开发与 CI 的协议验收不创建任何 Overlay 或托盘窗口。
-        if (options?.Headless == true || session?.Service is not { } service) return;
-        tray = new TrayController(service, Dispatcher, () => protocol?.Notify("openEditor"), ExitApplication);
-        overlay = new OverlayController(service, session, options?.EditorProcessId);
+        if (options?.Headless == true || session is null) return;
+        // 加载失败时仍保留托盘入口，用户收起错误页后可以重新打开并恢复数据。
+        tray = new TrayController(session.Service, Dispatcher, () => protocol?.Notify("openEditor"), ExitApplication);
+        if (session.Service is { } service)
+            overlay = new OverlayController(service, session, options?.EditorProcessId);
     }
 
     private async Task ReadRequests()

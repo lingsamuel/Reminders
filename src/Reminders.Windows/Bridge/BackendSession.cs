@@ -17,6 +17,7 @@ internal interface IEditorSession
 
 internal sealed record BackendSnapshot
 {
+    public long Sequence { get; init; }
     public bool Ready { get; init; }
     public string? Error { get; init; }
     public bool CanRestoreBackup { get; init; }
@@ -39,6 +40,7 @@ internal sealed class BackendSession : IEditorSession, IDisposable
     private readonly Func<TimeZoneInfo> zoneProvider;
     private StateLoadException? loadError;
     private string lastProjection = "";
+    private long sequence;
 
     public BackendSession(IStateStore store, Action restoreBackup, Func<bool> hasBackup, TimeProvider? clock = null, Func<TimeZoneInfo>? zoneProvider = null)
     {
@@ -62,6 +64,7 @@ internal sealed class BackendSession : IEditorSession, IDisposable
         var zone = zoneProvider();
         return new()
         {
+            Sequence = sequence,
             Ready = Service is not null,
             Error = loadError?.Message,
             CanRestoreBackup = loadError is { CanRestoreBackup: true } && hasBackup(),
@@ -77,7 +80,13 @@ internal sealed class BackendSession : IEditorSession, IDisposable
 
     public void Execute(string method, JsonElement payload)
     {
-        if (method is "snapshot" or "exit") return;
+        if (method == "snapshot")
+        {
+            // 仅未就绪时重新读取主文件；正常快照不替换正在使用的服务。
+            if (Service is null) TryReloadService();
+            return;
+        }
+        if (method == "exit") return;
         if (method == "editorVisible")
         {
             var visible = payload.GetProperty("visible").GetBoolean();
@@ -92,10 +101,7 @@ internal sealed class BackendSession : IEditorSession, IDisposable
         {
             if (loadError is null || !loadError.CanRestoreBackup || !hasBackup()) throw new InvalidOperationException("当前没有允许恢复的备份。");
             restoreBackup();
-            LoadService();
-            if (Service is null) throw new InvalidOperationException(loadError?.Message ?? "恢复失败。");
-            ServiceReplaced?.Invoke(this, EventArgs.Empty);
-            Publish(force: true);
+            if (!TryReloadService()) throw new InvalidOperationException(loadError?.Message ?? "恢复失败。");
             return;
         }
         var service = Service ?? throw new InvalidOperationException(loadError?.Message ?? "任务数据尚未就绪。");
@@ -115,6 +121,15 @@ internal sealed class BackendSession : IEditorSession, IDisposable
     public void RefreshTime() => Publish(force: false);
     public void Refresh() => Publish(force: false);
 
+    private bool TryReloadService()
+    {
+        LoadService();
+        if (Service is null) return false;
+        ServiceReplaced?.Invoke(this, EventArgs.Empty);
+        Publish(force: true);
+        return true;
+    }
+
     private void LoadService()
     {
         if (Service is not null) Service.Changed -= StateChanged;
@@ -131,12 +146,23 @@ internal sealed class BackendSession : IEditorSession, IDisposable
     private static Guid Id(JsonElement payload) => payload.GetProperty("id").GetGuid();
     private static T Read<T>(JsonElement payload, string property) => payload.GetProperty(property).Deserialize<T>(BridgeJson.Options) ?? throw new ArgumentException($"{property} 不能为空。");
     private void StateChanged(object? sender, EventArgs args) => Publish(force: true);
-    private string Projection() => JsonSerializer.Serialize(Snapshot() with { Now = default }, BridgeJson.Options);
+    private string Projection()
+    {
+        var snapshot = Snapshot();
+        var localDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(snapshot.Now, zoneProvider()).DateTime);
+        // 时间戳与序号本身不产生变更；本地午夜仍需更新前端日期，即使尚未到任务重置时间。
+        return JsonSerializer.Serialize(new
+        {
+            State = snapshot with { Now = default, Sequence = 0 },
+            LocalDate = localDate
+        }, BridgeJson.Options);
+    }
     private void Publish(bool force)
     {
         var projection = Projection();
         if (!force && projection == lastProjection) return;
         lastProjection = projection;
+        sequence++;
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

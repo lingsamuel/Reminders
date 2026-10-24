@@ -7,3 +7,10 @@ artifacts/
 .worktrees/
 *.user
 *.suo
+**/node_modules/
+**/dist/
+**/target/
+**/gen/
+**/coverage/
+**/test-results/
+**/playwright-report/
