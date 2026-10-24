@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Reminders.Core/Reminders.Core.csproj" />
+    <Project Path="src/Reminders.Persistence/Reminders.Persistence.csproj" />
+    <Project Path="src/Reminders.Windows/Reminders.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Reminders.Tests/Reminders.Tests.csproj" />
+    <Project Path="tests/Reminders.Windows.Tests/Reminders.Windows.Tests.csproj" />
+    <Project Path="tests/Reminders.Windows.Tests/Protocol/Reminders.Protocol.Tests.csproj" />
+  </Folder>
+</Solution>
