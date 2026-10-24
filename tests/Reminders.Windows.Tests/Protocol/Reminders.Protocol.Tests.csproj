@@ -2,6 +2,10 @@
  <PropertyGroup><TargetFramework>net10.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><IsTestProject>true</IsTestProject><IsPackable>false</IsPackable></PropertyGroup>
  <ItemGroup>
   <Compile Include="ProtocolTests.cs"/>
+  <Compile Include="FullscreenPolicyTests.cs"/>
+  <Compile Include="OverlayLayoutTests.cs"/>
+  <Compile Include="../../../src/Reminders.Windows/Overlay/OverlayLayout.cs" Link="Overlay/OverlayLayout.cs"/>
+  <Compile Include="../../../src/Reminders.Windows/Platform/FullscreenVisibilityPolicy.cs" Link="Platform/FullscreenVisibilityPolicy.cs"/>
   <Compile Include="../../../src/Reminders.Windows/Bridge/*.cs" Link="Bridge/%(Filename)%(Extension)"/>
   <ProjectReference Include="../../../src/Reminders.Core/Reminders.Core.csproj"/>
   <ProjectReference Include="../../../src/Reminders.Persistence/Reminders.Persistence.csproj"/>

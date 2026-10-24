@@ -960,26 +960,26 @@ h1 {
 }
 .overlay-preview {
   width: 100%;
-  background: #fff9;
-  padding: 14px 13px;
-  border-radius: 7px;
-  box-shadow: 0 5px 25px #56753c0a;
+  background: #17221feb;
+  padding: 12px 14px;
+  border: 1px solid #46584e;
+  border-radius: 12px;
   display: grid;
   gap: 12px;
   font-size: 14px;
-  color: #4b6241;
+  color: #eff5f0;
 }
 .overlay-preview span {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 .preview-check {
-  width: 13px;
-  height: 13px;
+  width: 20px;
+  height: 20px;
   display: inline-block;
-  border: 1px solid #9db48f;
-  border-radius: 3px;
+  border: 1.25px solid #94b5a4;
+  border-radius: 5px;
   flex-shrink: 0;
 }
 .preview-caption {

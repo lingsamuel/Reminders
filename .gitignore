@@ -4,6 +4,7 @@
 .idea/
 TestResults/
 artifacts/
+.tmp/
 .worktrees/
 *.user
 *.suo

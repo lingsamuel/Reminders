@@ -2,6 +2,8 @@
 
 > 后续编辑器方案已由用户改选 Tauri + React。Core/Persistence 步骤已完成；界面、进程集成与最终交付以 [接续计划](2026-10-24-tauri-editor.md) 为准。
 
+> 初版每行窗口与全局全屏隐藏方案已由 [0.1.1 呈现修复计划](2026-10-24-overlay-presentation.md) 替代；本文件保留初版实施记录。
+
 > **For agentic workers:** 使用 superpowers:subagent-driven-development 或 superpowers:executing-plans 执行；按下列复选框记录验证与交付。
 
 **Goal:** 实现带编辑器、托盘、历史与自动隐藏 Overlay 的 Windows 任务工具。

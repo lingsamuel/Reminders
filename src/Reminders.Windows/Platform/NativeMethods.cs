@@ -67,6 +67,16 @@ internal static class NativeMethods
     [DllImport("shell32.dll")]
     internal static extern int SHQueryUserNotificationState(out int state);
 
+    [DllImport("gdi32.dll")]
+    internal static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
+    [DllImport("gdi32.dll")]
+    internal static extern int CombineRgn(IntPtr destination, IntPtr first, IntPtr second, int mode);
+    [DllImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool DeleteObject(IntPtr handle);
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern int SetWindowRgn(IntPtr hwnd, IntPtr region, [MarshalAs(UnmanagedType.Bool)] bool redraw);
+
     internal static MonitorInfo GetMonitor(IntPtr hwnd)
     {
         var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };

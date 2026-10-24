@@ -3,20 +3,30 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  Title="Reminders Overlay" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
  ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False"
- Width="340" Height="260" MinWidth="200" MinHeight="80">
- <Border x:Name="Surface" CornerRadius="8" Padding="10">
+ Width="340" Height="260" MinWidth="200" MinHeight="40">
+ <Border x:Name="Surface" CornerRadius="12" Padding="14,12,14,12" BorderThickness="1"
+  Background="{StaticResource OverlaySurfaceBrush}" BorderBrush="{StaticResource OverlayBorderBrush}">
   <Grid>
    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-   <Border x:Name="DragHeader" Padding="2,4,2,12" Cursor="SizeAll" Background="Transparent" MouseLeftButtonDown="DragHeader_MouseDown">
-    <TextBlock Text="Reminders · 拖动调整位置" FontSize="12" Foreground="#A5B7C8"/>
+   <Border x:Name="DragHeader" Height="26" Padding="0,0,0,10" Cursor="SizeAll" Background="Transparent" MouseLeftButtonDown="DragHeader_MouseDown">
+    <TextBlock Text="Reminders · 拖动移动" FontSize="11" Foreground="{StaticResource OverlayMutedBrush}"/>
    </Border>
    <ScrollViewer x:Name="TaskScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <ScrollViewer.Resources>
+     <Style TargetType="ScrollBar" BasedOn="{StaticResource OverlayScrollBarStyle}"/>
+    </ScrollViewer.Resources>
     <StackPanel x:Name="RowsPanel"/>
    </ScrollViewer>
    <Grid Grid.Row="2">
-    <TextBlock x:Name="MoreText" Foreground="#A5B7C8" FontSize="12" Margin="2,6,0,0"/>
-    <Thumb x:Name="ResizeThumb" Width="18" Height="18" HorizontalAlignment="Right" Cursor="SizeNWSE" DragDelta="Resize_Delta" DragCompleted="Resize_Completed">
-     <Thumb.Template><ControlTemplate><TextBlock Text="◢" Foreground="#91D5C3" FontSize="14"/></ControlTemplate></Thumb.Template>
+    <TextBlock x:Name="MoreText" Foreground="{StaticResource OverlayMutedBrush}" FontSize="11" Margin="0,6,18,0"/>
+    <Thumb x:Name="ResizeThumb" Width="12" Height="12" Margin="0,6,0,0" HorizontalAlignment="Right" VerticalAlignment="Bottom" Cursor="SizeNWSE" DragDelta="Resize_Delta" DragCompleted="Resize_Completed">
+     <Thumb.Template>
+      <ControlTemplate TargetType="Thumb">
+       <Grid Background="Transparent">
+        <Path Data="M 3,10 L 10,3 M 7,10 L 10,7" Stroke="{StaticResource OverlayMutedBrush}" StrokeThickness="1.25" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+       </Grid>
+      </ControlTemplate>
+     </Thumb.Template>
     </Thumb>
    </Grid>
   </Grid>
