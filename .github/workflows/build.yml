@@ -1,19 +1,44 @@
-name: Build Windows
+name: Build and Release Windows
 on:
   push:
+    branches: ['**']
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Validate release scripts
+        run: |
+          node --test scripts/check-release-version.test.mjs scripts/create-release.test.mjs
+          bash -n scripts/create-release.sh
+      - name: Check consistent versions and release tag
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: node scripts/check-release-version.mjs "$RELEASE_TAG"
   build:
+    needs: checks
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
@@ -35,21 +60,48 @@ jobs:
       - name: Verify real backend stdio without desktop input
         shell: pwsh
         run: ./scripts/verify-backend.ps1 -BackendPath "$pwd/src/Reminders.Windows/bin/Release/net10.0-windows/Reminders.Backend.dll"
-      - name: Test Rust protocol and window coordination
-        working-directory: src/Reminders.Desktop/src-tauri
-        run: cargo test --locked
       - name: Publish Windows x64
         shell: pwsh
         run: ./scripts/publish.ps1
-      - uses: actions/upload-artifact@v4
+      - name: Test Rust protocol and window coordination
+        working-directory: src/Reminders.Desktop/src-tauri
+        run: cargo test --locked
+      - uses: actions/upload-artifact@v7
         with:
           name: Reminders-win-x64
           path: artifacts/Reminders-*-win-x64.zip
-      - uses: actions/upload-artifact@v4
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
         with:
           name: Reminders-installer
           path: src/Reminders.Desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
-      - uses: actions/upload-artifact@v4
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
         with:
           name: offscreen-previews
           path: artifacts/offscreen/*.png
+          if-no-files-found: error
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: Reminders-win-x64
+          path: release-assets
+      - uses: actions/download-artifact@v8
+        with:
+          name: Reminders-installer
+          path: release-assets
+      - name: Publish tag release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: bash scripts/create-release.sh "$RELEASE_TAG" release-assets

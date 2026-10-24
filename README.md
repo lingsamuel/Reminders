@@ -63,7 +63,18 @@ dotnet publish src/Reminders.Windows -c Release -r win-x64 --self-contained true
 
 已安装 MinGW-w64 和 Rustup 的 Linux/WSL 环境可运行 `./scripts/publish-cross.sh` 直接生成 Windows 便携 ZIP，不启动任何应用窗口。
 
-GitHub Actions 会运行核心/协议/前端测试、离屏验证、无界面进程验证和 Windows 构建，上传 ZIP 与安装包，不自动创建正式 Release。
+GitHub Actions 会在分支推送、PR 和手动触发时校验版本、运行测试与无界面验证，构建 Windows x64 便携 ZIP 和 NSIS 安装包，并上传 Actions 产物。
+
+推送版本 tag 会在全部检查通过后自动创建 GitHub Release、生成发布说明并上传这两种安装产物。例如，项目版本为 `0.1.1` 时：
+
+```sh
+git tag -a v0.1.1 -m "发布 0.1.1"
+git push origin v0.1.1
+```
+
+tag 使用 `vX.Y.Z` 或 `vX.Y.Z-rc.1` 等 SemVer 预发布形式，必须与 .NET、npm、Tauri、Rust 和锁文件中的版本一致；Windows manifest 使用不含预发布后缀的四段数字版本。可先运行 `node scripts/check-release-version.mjs v0.1.1` 本地校验。预发布 tag 自动标记为 prerelease；普通提交、PR 与手动构建不会发 Release。
+
+Release 使用仓库内置 `GITHUB_TOKEN`，只有发布任务申请 `contents: write`，不需要额外 PAT。先创建草稿、上传全部附件后才公开；中断重跑会补缺失附件，不覆盖已发布同名文件或手动编辑的说明。Rust 测试在后台发布产物准备后执行，避免干净 runner 缺少所需资源目录。
 
 ## 数据与恢复
 
