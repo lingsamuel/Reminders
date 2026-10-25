@@ -65,6 +65,8 @@ dotnet publish src/Reminders.Windows -c Release -r win-x64 --self-contained true
 
 已安装 MinGW-w64 和 Rustup 的 Linux/WSL 环境可运行 `./scripts/publish-cross.sh` 直接生成 Windows 便携 ZIP，不启动任何应用窗口。
 
+两种本地打包脚本均在成功打包后自动清理旧发布包：便携 ZIP 和各 Windows 目标的 NSIS 安装包分别按文件修改时间保留最新三份，同版本重新打包仍覆盖原文件。清理仅匹配标准命名的发布包，不删除后台目录、编译缓存、解压目录或其他文件；构建或压缩失败时不执行清理。
+
 GitHub Actions 会在分支推送、PR 和手动触发时校验版本、运行测试与无界面验证，构建 Windows x64 便携 ZIP 和 NSIS 安装包，并上传 Actions 产物。
 
 推送版本 tag 会在全部检查通过后自动创建 GitHub Release、生成发布说明并上传这两种安装产物。例如，项目版本为 `0.1.2` 时：

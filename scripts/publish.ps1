@@ -28,6 +28,8 @@ try {
     New-Item -ItemType Directory -Path $documentationDirectory -Force | Out-Null
     Copy-Item docs/architecture.md,docs/verification.md $documentationDirectory
     Compress-Archive -Path (Join-Path $OutputDirectory '*') -DestinationPath $archivePath -Force
+    node (Join-Path $PSScriptRoot 'prune-build-artifacts.mjs')
+    if ($LASTEXITCODE -ne 0) { throw 'Build artifact cleanup failed.' }
     Write-Output "Portable ZIP: $archivePath"
     Write-Output 'Installer: src/Reminders.Desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis'
 } finally { Pop-Location }

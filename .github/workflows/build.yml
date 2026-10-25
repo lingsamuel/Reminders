@@ -22,8 +22,8 @@ jobs:
           node-version: '24'
       - name: Validate release scripts
         run: |
-          node --test scripts/check-release-version.test.mjs scripts/create-release.test.mjs
-          bash -n scripts/create-release.sh
+          node --test scripts/check-release-version.test.mjs scripts/create-release.test.mjs scripts/prune-build-artifacts.test.mjs
+          bash -n scripts/create-release.sh scripts/publish-cross.sh
       - name: Check consistent versions and release tag
         env:
           RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}

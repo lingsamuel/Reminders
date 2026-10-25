@@ -29,3 +29,4 @@ version = json.loads((root / 'src/Reminders.Desktop/package.json').read_text())[
 archive = shutil.make_archive(str(root / f'artifacts/Reminders-{version}-win-x64'), 'zip', root / 'artifacts/win-x64')
 print(f'Portable ZIP: {archive}')
 PY
+node "$repo_root/scripts/prune-build-artifacts.mjs"
