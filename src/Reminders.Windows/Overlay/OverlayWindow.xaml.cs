@@ -34,7 +34,7 @@ public partial class OverlayWindow : Window
         Closing += (_, args) => args.Cancel = !AllowClose;
     }
 
-    internal void Render(IReadOnlyList<TaskStatus> tasks, bool isEditing, double fontSize, int maxRows)
+    internal void Render(IReadOnlyList<TaskStatus> tasks, bool isEditing, double fontSize, int maxRows, DateOnly? today = null)
     {
         editing = isEditing;
         behavior?.SetMode(isEditing, !isEditing);
@@ -58,7 +58,7 @@ public partial class OverlayWindow : Window
             row.Button.IsHitTestVisible = isEditing;
             row.Button.IsPreviewHovered = row.Button.IsPreviewPressed = false;
             AutomationProperties.SetName(row.Button, $"完成 {task.Task.Title}");
-            row.Text.Text = DisplayText.OverlayTitle(task);
+            row.Text.Text = DisplayText.OverlayTitle(task, today);
             row.Text.FontSize = fontSize;
             row.Text.Foreground = task.IsOverdue ? new SolidColorBrush(Color.FromRgb(255, 188, 163))
                 : (Brush)FindResource("OverlayTextBrush");

@@ -7,6 +7,7 @@ using Microsoft.Win32;
 using Reminders.Core;
 using Reminders.Windows.Bridge;
 using Reminders.Windows.Platform;
+using Reminders.Windows.Presentation;
 
 namespace Reminders.Windows.Overlay;
 
@@ -64,7 +65,9 @@ internal sealed class OverlayController : IDisposable
             var editing = editor.IsVisible;
             var tasks = service.GetTasks().Where(x => x.IsAvailable && !x.IsCompleted).ToArray();
             if (!settings.Visible || (!editing && tasks.Length == 0)) { Conceal(); return; }
-            var signature = $"{editing}|{settings}|{string.Join(';', tasks.Select(x => $"{x.Task.Id}:{x.Task.Title}:{x.Period?.Key}:{x.IsOverdue}"))}";
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            // 实际文案纳入缓存，跨午夜或修改截止日期时也要重绘。
+            var signature = $"{editing}|{settings}|{string.Join(';', tasks.Select(x => $"{x.Task.Id}:{DisplayText.OverlayTitle(x, today)}:{x.Period?.Key}:{x.IsOverdue}"))}";
             var changed = signature != lastSignature;
             if (changed)
             {
@@ -78,7 +81,7 @@ internal sealed class OverlayController : IDisposable
                 var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(window);
                 var layout = OverlayLayout.Calculate(tasks.Length, settings.FontSize, settings.Height, work.Height / dpi.DpiScaleY, editing);
                 window.Height = layout.Height;
-                window.Render(tasks, editing, settings.FontSize, layout.VisibleRows);
+                window.Render(tasks, editing, settings.FontSize, layout.VisibleRows, today);
                 KeepOnScreen();
                 lastSignature = signature;
             }

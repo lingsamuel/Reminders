@@ -4,6 +4,8 @@
   <Compile Include="ProtocolTests.cs"/>
   <Compile Include="FullscreenPolicyTests.cs"/>
   <Compile Include="OverlayLayoutTests.cs"/>
+  <Compile Include="DisplayTextTests.cs"/>
+  <Compile Include="../../../src/Reminders.Windows/Presentation/DisplayText.cs" Link="Presentation/DisplayText.cs"/>
   <Compile Include="../../../src/Reminders.Windows/Overlay/OverlayLayout.cs" Link="Overlay/OverlayLayout.cs"/>
   <Compile Include="../../../src/Reminders.Windows/Platform/FullscreenVisibilityPolicy.cs" Link="Platform/FullscreenVisibilityPolicy.cs"/>
   <Compile Include="../../../src/Reminders.Windows/Bridge/*.cs" Link="Bridge/%(Filename)%(Extension)"/>

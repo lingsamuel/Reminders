@@ -18,9 +18,11 @@ Windows 10/11 上的简易任务 Overlay。编辑器使用 Tauri + React，支�
 | 每日 | 每日 05:00 | 04:59 仍属于前一周期，05:00 开始新周期 |
 | 每周 | 每周四 00:00 | 周四零点开始新的七天周期 |
 | 每 N 天 | 从 10 月 24 日起，每 2 天 04:00 | 24、26、28 日 04:00 重置；完成时间不改变后续周期 |
-| 一次性 | 10 月 31 日截止 | 不选具体时间时表示当天结束；逾期保持显示，完成后不会循环 |
+| 一次性 | 10 月 31 日截止 | 浮层显示 `10/31（3天后）截止` 等剩余天数，当天显示“今天”；不选具体时间时表示当天结束，逾期保持显示，完成后不会循环 |
 
 每个任务独立计算，没有统一的全局重置点。未完成的重复任务跨周期后继续显示本周期的一条任务，不累计欠账。未到起始日期的每 N 天任务暂不显示。
+
+一次性任务的剩余天数按本地日历日期计算，跨午夜自动更新；已到截止边界时继续显示“已逾期”。
 
 所有时间跟随操作系统当前时区，支持系统时间变更与休眠恢复。夏令时缺失时间顺延至首个有效分钟，重复时间使用首次出现的时刻。每 N 天按本地日历计算，不保证间隔严格为 N×24 小时。
 
@@ -53,7 +55,7 @@ npm run tauri dev
 ./scripts/publish.ps1
 ```
 
-便携包输出为 `artifacts/Reminders-0.1.1-win-x64.zip`；NSIS 安装包在 Tauri 的 `target/x86_64-pc-windows-msvc/release/bundle/nsis`。项目没有自动更新；替换程序前先从托盘退出，用户数据不会保存在程序目录。
+便携包输出为 `artifacts/Reminders-0.1.2-win-x64.zip`；NSIS 安装包在 Tauri 的 `target/x86_64-pc-windows-msvc/release/bundle/nsis`。项目没有自动更新；替换程序前先从托盘退出，用户数据不会保存在程序目录。
 
 Linux/WSL 可运行核心、协议与 React 测试，交叉编译 .NET 后台与 Tauri Windows GNU 目标；完整应用面向 Windows。后台交叉发布命令：
 
@@ -65,14 +67,14 @@ dotnet publish src/Reminders.Windows -c Release -r win-x64 --self-contained true
 
 GitHub Actions 会在分支推送、PR 和手动触发时校验版本、运行测试与无界面验证，构建 Windows x64 便携 ZIP 和 NSIS 安装包，并上传 Actions 产物。
 
-推送版本 tag 会在全部检查通过后自动创建 GitHub Release、生成发布说明并上传这两种安装产物。例如，项目版本为 `0.1.1` 时：
+推送版本 tag 会在全部检查通过后自动创建 GitHub Release、生成发布说明并上传这两种安装产物。例如，项目版本为 `0.1.2` 时：
 
 ```sh
-git tag -a v0.1.1 -m "发布 0.1.1"
-git push origin v0.1.1
+git tag -a v0.1.2 -m "发布 0.1.2"
+git push origin v0.1.2
 ```
 
-tag 使用 `vX.Y.Z` 或 `vX.Y.Z-rc.1` 等 SemVer 预发布形式，必须与 .NET、npm、Tauri、Rust 和锁文件中的版本一致；Windows manifest 使用不含预发布后缀的四段数字版本。可先运行 `node scripts/check-release-version.mjs v0.1.1` 本地校验。预发布 tag 自动标记为 prerelease；普通提交、PR 与手动构建不会发 Release。
+tag 使用 `vX.Y.Z` 或 `vX.Y.Z-rc.1` 等 SemVer 预发布形式，必须与 .NET、npm、Tauri、Rust 和锁文件中的版本一致；Windows manifest 使用不含预发布后缀的四段数字版本。可先运行 `node scripts/check-release-version.mjs v0.1.2` 本地校验。预发布 tag 自动标记为 prerelease；普通提交、PR 与手动构建不会发 Release。
 
 Release 使用仓库内置 `GITHUB_TOKEN`，只有发布任务申请 `contents: write`，不需要额外 PAT。先创建草稿、上传全部附件后才公开；中断重跑会补缺失附件，不覆盖已发布同名文件或手动编辑的说明。Rust 测试在后台发布产物准备后执行，避免干净 runner 缺少所需资源目录。
 
